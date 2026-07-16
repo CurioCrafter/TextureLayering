@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+id = "surface_layer_studio"
+version = "1.0.0"
+name = "Surface Layer Studio"
+tagline = "Layer and paint UV-masked PBR materials directly in Blender"
+maintainer = "Andre + OpenAI Codex"
+type = "add-on"
+tags = ["Material", "Paint", "UV"]
+blender_version_min = "4.5.0"
+license = ["SPDX:MIT"]
+
+[permissions]
+files = "Load PBR texture sets and export painted layer masks"

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.blend1
+*.blend2
+.tools/
+build/
+dist/
+!dist/
+dist/*
+!dist/surface_layer_studio-1.0.0.zip
+artifacts/
+.tmp-profile*/
