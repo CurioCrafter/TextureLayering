@@ -1,0 +1,65 @@
+name: RockForge public download verification
+on:
+  push:
+    branches: [rockforge-studio]
+    paths: ['.github/workflows/rockforge-public-downloads.yml']
+permissions:
+  contents: read
+jobs:
+  public-downloads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Fetch published release metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/releases/tags/rockforge-studio-v1.0.0" > release.json
+      - name: Download the actual public links without credentials and verify their contents
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, urllib.request, zipfile
+          metadata=json.load(open('release.json'))
+          assert not metadata['draft']
+          folder=pathlib.Path('public-downloads');folder.mkdir()
+          results=[]
+          for asset in metadata['assets']:
+              assert asset['state']=='uploaded'
+              name=asset['name']
+              assert pathlib.Path(name).name==name
+              target=folder/name
+              request=urllib.request.Request(asset['browser_download_url'],headers={'User-Agent':'RockForge-Public-Download-Check'})
+              hasher=hashlib.sha256()
+              with urllib.request.urlopen(request,timeout=120) as response, target.open('wb') as stream:
+                  assert response.status==200
+                  final_url=response.url
+                  for chunk in iter(lambda:response.read(1024*1024),b''):
+                      stream.write(chunk);hasher.update(chunk)
+              assert target.stat().st_size==asset['size']
+              assert 'sha256:'+hasher.hexdigest()==asset['digest']
+              crc='not a ZIP'
+              if name.endswith('.zip'):
+                  with zipfile.ZipFile(target) as archive:assert archive.testzip() is None
+                  crc='passed'
+              result={'name':name,'public_url':asset['browser_download_url'],'http_status':200,
+                      'bytes':target.stat().st_size,'sha256':hasher.hexdigest(),
+                      'published_hash_matched':True,'zip_crc':crc,'authenticated_download':False}
+              results.append(result)
+              print(json.dumps(result),flush=True)
+          names={r['name'] for r in results}
+          assert {'RockForge-Studio-1.0.0.zip','RockForge-Studio-Complete.zip','Verification.json','Basalt.jpg','Limestone.jpg','Slate.jpg','Blender-Interface.png'}.issubset(names)
+          with zipfile.ZipFile(folder/'RockForge-Studio-1.0.0.zip') as archive:
+              assert 'rockforge_studio/__init__.py' in archive.namelist()
+              for name in archive.namelist():
+                  if name.endswith('.py'):compile(archive.read(name).decode('utf-8'),name,'exec')
+          with zipfile.ZipFile(folder/'RockForge-Studio-Complete.zip') as archive:
+              assert archive.read('RockForge-Studio-1.0.0.zip')==(folder/'RockForge-Studio-1.0.0.zip').read_bytes()
+              for name in ('Basalt','Limestone','Slate'):
+                  assert json.loads(archive.read('examples/'+name+'/reopen.json'))['success']
+          report={'success':True,'release':metadata['html_url'],'assets':results}
+          pathlib.Path('public-download-verification.json').write_text(json.dumps(report,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RockForge-Public-Download-Verification
+          retention-days: 30
+          path: public-download-verification.json
