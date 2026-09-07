@@ -183,6 +183,9 @@ def _block(rng, center, scale, angularity, tilt, slate=False):
 
 
 def generate_high(cfg, name='RockForge', collection=None):
+    # Primitive operators must not append their vertices to an edited user mesh.
+    if bpy.context.object and bpy.context.object.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
     rng = random.Random(int(cfg['seed']))
     w,d,h = cfg['width'],cfg['depth'],cfg['height']
     count = int(cfg['blocks'])
@@ -190,7 +193,9 @@ def generate_high(cfg, name='RockForge', collection=None):
     ridge = cfg.get('formation','MOUND') == 'RIDGE'
     single = cfg.get('formation') == 'BOULDER'
     parts = []
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3,radius=1)
+    # Construct in local origin space; the public operator places the finished asset.
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1,
+        location=(0,0,0), rotation=(0,0,0), align='WORLD')
     base=bpy.context.object
     for v in base.data.vertices:
         p=v.co.copy()
