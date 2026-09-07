@@ -1,0 +1,54 @@
+name: Blender integration
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  blender:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official Blender with checksum verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 -o /tmp/blender.tar.xz https://download.blender.org/release/Blender4.5/blender-4.5.11-linux-x64.tar.xz
+          curl --fail --location --retry 3 -o /tmp/blender.sha256 https://download.blender.org/release/Blender4.5/blender-4.5.11.sha256
+          EXPECTED=$(grep 'blender-4.5.11-linux-x64.tar.xz' /tmp/blender.sha256 | cut -d ' ' -f1)
+          test -n "$EXPECTED"
+          echo "$EXPECTED  /tmp/blender.tar.xz" | sha256sum --check -
+          tar -xf /tmp/blender.tar.xz -C /tmp
+          echo "/tmp/blender-4.5.11-linux-x64" >> "$GITHUB_PATH"
+      - name: Runtime for local reproduction
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-runtime-4.5.11
+          retention-days: 1
+          compression-level: 0
+          path: /tmp/blender.tar.xz
+      - name: Build extension
+        run: |
+          if test -f scripts/build_extension.py; then python scripts/build_extension.py; fi
+      - name: Original source regression
+        run: |
+          mkdir -p artifacts
+          blender --background --factory-startup --python-exit-code 1 --python tests/blender_smoke.py -- --source-root "$PWD" --artifact "$PWD/artifacts/original-smoke.blend"
+          blender --background --factory-startup --python-exit-code 1 --python tests/blender_ui_smoke.py -- --source-root "$PWD"
+      - name: Texture desk regression
+        run: |
+          if test -f tests/blender_desk_smoke.py; then
+            blender --background --factory-startup --python-exit-code 1 --python tests/blender_desk_smoke.py -- --source-root "$PWD" --output "$PWD/artifacts"
+          fi
+      - name: Retain test evidence and installable extension
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-validation
+          retention-days: 14
+          path: |
+            artifacts/
+            dist/surface_layer_studio-*.zip
