@@ -1,0 +1,170 @@
+name: RockForge parallel specimen delivery
+on:
+  push:
+    branches: [rockforge-studio]
+    paths: ['.github/workflows/rockforge-parallel.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: rockforge-studio
+        shell: bash
+    env:
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain and verify native Blender runtimes
+        run: |
+          set -euo pipefail
+          mkdir -p output/runtime
+          for VERSION in 4.5.11 5.2.1; do
+            BASE=https://download.blender.org/release/Blender${VERSION%.*}
+            ARCHIVE=blender-${VERSION}-linux-x64.tar.xz
+            curl -fL --retry 3 "$BASE/$ARCHIVE" -o "$RUNNER_TEMP/$ARCHIVE"
+            curl -fL --retry 3 "$BASE/blender-${VERSION}.sha256" -o "output/runtime/blender-${VERSION}.sha256"
+            EXPECTED=$(grep "$ARCHIVE" "output/runtime/blender-${VERSION}.sha256" | awk '{print $1}')
+            test -n "$EXPECTED"
+            echo "$EXPECTED  $RUNNER_TEMP/$ARCHIVE" | sha256sum --check -
+            tar -xf "$RUNNER_TEMP/$ARCHIVE" -C "$RUNNER_TEMP"
+          done
+      - name: Build and test the exact installer in both Blender versions
+        run: |
+          set -euo pipefail
+          python build.py
+          for PAIR in '4.5.11 45' '5.2.1 52'; do
+            read -r VERSION KEY <<< "$PAIR"
+            export BLENDER_USER_CONFIG="$RUNNER_TEMP/profile-$KEY/config"
+            export BLENDER_USER_SCRIPTS="$RUNNER_TEMP/profile-$KEY/scripts"
+            "$RUNNER_TEMP/blender-$VERSION-linux-x64/blender" -b --factory-startup --threads 4 --python-exit-code 1 --python tests/verify.py -- "$PWD/dist/RockForge-Studio-1.0.0.zip" "$PWD/output/verification$KEY" > "output/verify-$KEY.log" 2>&1 || { cat "output/verify-$KEY.log"; exit 1; }
+          done
+          "$RUNNER_TEMP/blender-4.5.11-linux-x64/blender" -b --factory-startup --threads 4 --python-exit-code 1 --python tests/produce.py -- matrix "$PWD/output" > output/matrix.log 2>&1 || { cat output/matrix.log; exit 1; }
+          find output -name '*.blend' -o -name '*.glb' -o -name '*.png' | xargs -r rm -f
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: RockForge-parallel-validation
+          retention-days: 30
+          path: rockforge-studio/output/
+  gallery:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: BASALT
+            name: Basalt
+          - preset: LIMESTONE
+            name: Limestone
+          - preset: SLATE
+            name: Slate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rockforge-studio
+        shell: bash
+    env:
+      OMP_NUM_THREADS: '4'
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain a verified native Blender runtime
+        run: |
+          set -euo pipefail
+          VERSION=4.5.11
+          BASE=https://download.blender.org/release/Blender4.5
+          ARCHIVE=blender-${VERSION}-linux-x64.tar.xz
+          mkdir -p output/runtime
+          curl -fL --retry 3 "$BASE/$ARCHIVE" -o "$RUNNER_TEMP/$ARCHIVE"
+          curl -fL --retry 3 "$BASE/blender-${VERSION}.sha256" -o "output/runtime/blender-${VERSION}.sha256"
+          EXPECTED=$(grep "$ARCHIVE" "output/runtime/blender-${VERSION}.sha256" | awk '{print $1}')
+          test -n "$EXPECTED"
+          echo "$EXPECTED  $RUNNER_TEMP/$ARCHIVE" | sha256sum --check -
+          tar -xf "$RUNNER_TEMP/$ARCHIVE" -C "$RUNNER_TEMP"
+          echo "BLENDER45=$RUNNER_TEMP/blender-${VERSION}-linux-x64/blender" >> "$GITHUB_ENV"
+          cp ../.github/scripts/rockforge_fast_render.py tests/fast_render.py
+      - name: Build and bake full-resolution specimen with adaptive preview rendering
+        run: |
+          "$BLENDER45" -b --factory-startup --threads 4 --python-exit-code 1 --python tests/fast_render.py -- gallery "$PWD/output" '${{ matrix.preset }}' > 'output/gallery-${{ matrix.preset }}.log' 2>&1 || { tail -150 'output/gallery-${{ matrix.preset }}.log'; exit 1; }
+          "$BLENDER45" -b 'output/examples/${{ matrix.name }}/${{ matrix.name }}.blend' --threads 2 --python-exit-code 1 --python tests/produce.py -- reopen '$PWD/output/examples/${{ matrix.name }}' > 'output/reopen-${{ matrix.name }}.log' 2>&1
+          find output -name '*.blend1' -delete
+      - name: Correct reopen evidence destination
+        run: |
+          "$BLENDER45" -b "output/examples/${{ matrix.name }}/${{ matrix.name }}.blend" --threads 2 --python-exit-code 1 --python tests/produce.py -- reopen "$PWD/output/examples/${{ matrix.name }}" > "output/reopen-${{ matrix.name }}.log" 2>&1 || { cat "output/reopen-${{ matrix.name }}.log"; exit 1; }
+      - name: Install native desktop dependencies
+        if: matrix.preset == 'BASALT'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb xauth openbox imagemagick libgl1 libegl1 libxi6 libxrender1 libxfixes3 libxkbcommon0 libsm6 libxxf86vm1
+      - name: Capture and verify the actual RockForge sidebar
+        if: matrix.preset == 'BASALT'
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/rf-ui/config
+        run: |
+          "$BLENDER45" -b --factory-startup --threads 1 --python-expr 'import bpy; bpy.context.preferences.view.show_splash=False; bpy.ops.wm.save_userpref()' > output/ui-preferences.log 2>&1
+          xvfb-run -a -s '-screen 0 1700x1100x24' bash -c 'openbox >/tmp/rockforge-openbox.log 2>&1 & timeout 180 "$BLENDER45" output/examples/Basalt/Basalt.blend --enable-event-simulate --threads 2 --window-geometry 0 0 1700 1100 --python-exit-code 1 --python tests/gui_capture.py -- "$PWD/output/images"' > output/ui.log 2>&1 || { cat output/ui.log; exit 1; }
+          python -c "import json; r=json.load(open('output/images/ui.json')); print(r); assert r['success'] and r['active_sidebar']=='RockForge'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: RockForge-parallel-${{ matrix.preset }}
+          retention-days: 30
+          compression-level: 0
+          path: rockforge-studio/output/
+  publish:
+    needs: [validation, gallery]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: rockforge-studio
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: RockForge-parallel-*
+          merge-multiple: true
+          path: rockforge-studio/output
+      - name: Package only validated and reopened assets
+        run: |
+          cp ../.github/scripts/rockforge_fast_render.py tests/fast_render.py
+          python build.py
+          python build.py --complete output
+          cd dist
+          sha256sum --check SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RockForge-Studio-Parallel-Delivery
+          retention-days: 30
+          compression-level: 0
+          path: rockforge-studio/dist/
+      - name: Publish verified GitHub downloads without overwriting an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=rockforge-studio-v1.0.0
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'The original verified build already published this version; keeping its release unchanged.'
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets
+            exit 0
+          fi
+          cat > release-notes.md <<'EOF'
+          # RockForge Studio 1.0.0
+          Install **RockForge-Studio-1.0.0.zip** in Blender Preferences > Add-ons > Install from Disk. Enable it and open the **RockForge** sidebar tab with N.
+
+          **RockForge-Studio-Complete.zip** includes the installer, all source code, tests, three self-contained Blender scenes, actual baked 2K texture maps, GLB and LOD exports, native beauty and quad-topology renders, and a verified native Blender interface screenshot.
+
+          Validated with clean-profile installation tests in Blender 4.5.11 and 5.2.1, eighteen preset/seed cases, actual Cycles bakes, GLB reimport, packed scene reopen, and the real RockForge sidebar. See **Verification.json** for measurements and **SHA256SUMS.txt** for checksums.
+
+          Preview renders use full-size 1600x1200 images with 32-sample adaptive Cycles rendering and denoising. Textures remain 2048x2048 with the original bake quality. No generated concept images are used.
+
+          There is no guarantee of perfect output for every parameter combination. Reference retopology transfers shape only, not arbitrary reference textures. Inspect LOD shading at intended viewing distances.
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'RockForge Studio 1.0.0 — Blender rock generator' --notes-file release-notes.md dist/RockForge-Studio-1.0.0.zip dist/RockForge-Studio-Complete.zip dist/Verification.json dist/SHA256SUMS.txt dist/*.jpg dist/*.png
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets
