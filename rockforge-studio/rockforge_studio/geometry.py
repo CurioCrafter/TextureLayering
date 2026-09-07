@@ -256,8 +256,8 @@ def generate_high(cfg, name='RockForge', collection=None):
     return high
 
 
-def retopologize(high, target_quads, seed=0, name='RockForge_LOW'):
-    """Native QuadriFlow with explicit failure checks; no hidden decimate fallback."""
+def _retopologize_once(high, target_quads, seed=0, name='RockForge_LOW'):
+    """Native QuadriFlow with explicit failure checks; no decimate fallback."""
     low = copy_object(high,name,high.users_collection[0])
     for mod in list(low.modifiers): low.modifiers.remove(mod)
     activate(low)
@@ -288,3 +288,27 @@ def retopologize(high, target_quads, seed=0, name='RockForge_LOW'):
     low['rf_source']=high.name
     low['rf_audit']=json.dumps(mesh_audit(low),sort_keys=True)
     return low
+
+
+def retopologize(high, target_quads, seed=0, name='RockForge_LOW'):
+    """Retry solver seeds without changing the requested shape or polygon target."""
+    expected_components = mesh_audit(high)['components']
+    attempts = []
+    for attempt in range(4):
+        native_seed = int(seed) + 7919 * attempt
+        candidate = None
+        try:
+            candidate = _retopologize_once(high, target_quads, native_seed, name)
+            audit = mesh_audit(candidate)
+            if audit['components'] != expected_components:
+                raise RuntimeError('Retopology changed the connected-component count.')
+            candidate['rf_remesh_attempts'] = attempt + 1
+            candidate['rf_native_remesh_seed'] = native_seed
+            candidate['rf_requested_seed'] = int(seed)
+            return candidate
+        except RuntimeError as error:
+            attempts.append(str(error))
+            if candidate is not None and candidate.name in bpy.data.objects:
+                bpy.data.objects.remove(candidate, do_unlink=True)
+    raise RuntimeError('QuadriFlow failed four validated attempts; the source is retained. '
+                       'Increase the quad budget or source resolution. Last error: ' + attempts[-1])
