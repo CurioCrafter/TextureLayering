@@ -45,9 +45,19 @@ try:
     settings.density = 80
     settings.quads = 1000
     check('preset_applied', abs(settings.height - 1.8) < 1e-5)
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(8, 8, 8))
+    guard = bpy.context.object
+    guard_hash = fingerprint(guard)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.context.scene.cursor.location = (2, -3, 1)
     check('build_operator', 'FINISHED' in bpy.ops.rockforge.build(bake_textures=False))
     low = bpy.context.object
     high = bpy.data.objects[low['rf_source']]
+    bpy.context.view_layer.update()
+    check('existing_edit_mesh_preserved', len(guard.data.vertices) == 8 and fingerprint(guard) == guard_hash)
+    check('cursor_placement_and_source_alignment', (low.location - bpy.context.scene.cursor.location).length < 1e-6 and (low.matrix_world.translation - high.matrix_world.translation).length < 1e-6)
+    bpy.data.objects.remove(guard, do_unlink=True)
+    bpy.context.scene.cursor.location = (0, 0, 0)
     audit = rf.geometry.mesh_audit(low)
     report['mesh'] = audit
     check('all_quad_base_mesh', audit['quads'] == audit['faces'] and audit['faces'] > 100)
