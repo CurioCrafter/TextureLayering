@@ -8,25 +8,33 @@ permissions:
   contents: read
 jobs:
   blender:
+    strategy:
+      fail-fast: false
+      matrix:
+        blender: ['4.5.11', '5.2.1']
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Fetch official Blender with checksum verification
         shell: bash
+        env:
+          VERSION: ${{ matrix.blender }}
         run: |
           set -euo pipefail
-          curl --fail --location --retry 3 -o /tmp/blender.tar.xz https://download.blender.org/release/Blender4.5/blender-4.5.11-linux-x64.tar.xz
-          curl --fail --location --retry 3 -o /tmp/blender.sha256 https://download.blender.org/release/Blender4.5/blender-4.5.11.sha256
-          EXPECTED=$(grep 'blender-4.5.11-linux-x64.tar.xz' /tmp/blender.sha256 | cut -d ' ' -f1)
+          SERIES=${VERSION%.*}
+          URL=https://download.blender.org/release/Blender${SERIES}
+          curl --fail --location --retry 3 -o /tmp/blender.tar.xz "$URL/blender-$VERSION-linux-x64.tar.xz"
+          curl --fail --location --retry 3 -o /tmp/blender.sha256 "$URL/blender-$VERSION.sha256"
+          EXPECTED=$(grep "blender-$VERSION-linux-x64.tar.xz" /tmp/blender.sha256 | cut -d ' ' -f1)
           test -n "$EXPECTED"
           echo "$EXPECTED  /tmp/blender.tar.xz" | sha256sum --check -
           tar -xf /tmp/blender.tar.xz -C /tmp
-          echo "/tmp/blender-4.5.11-linux-x64" >> "$GITHUB_PATH"
+          echo "/tmp/blender-$VERSION-linux-x64" >> "$GITHUB_PATH"
       - name: Runtime for local reproduction
         uses: actions/upload-artifact@v4
         with:
-          name: blender-runtime-4.5.11
+          name: blender-runtime-${{ matrix.blender }}
           retention-days: 1
           compression-level: 0
           path: /tmp/blender.tar.xz
@@ -38,6 +46,8 @@ jobs:
           mkdir -p artifacts
           blender --background --factory-startup --python-exit-code 1 --python tests/blender_smoke.py -- --source-root "$PWD" --artifact "$PWD/artifacts/original-smoke.blend"
           blender --background --factory-startup --python-exit-code 1 --python tests/blender_ui_smoke.py -- --source-root "$PWD"
+          blender --background --factory-startup --python-exit-code 1 --python tests/blender_import_smoke.py -- --source-root "$PWD" --fixture-dir "$PWD/artifacts/import-fixtures"
+          blender --background --factory-startup --python-exit-code 1 --python tests/blender_reopen_smoke.py -- --source-root "$PWD" --artifact "$PWD/artifacts/original-smoke.blend"
       - name: Texture desk regression
         run: |
           if test -f tests/blender_desk_smoke.py; then
@@ -47,7 +57,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: blender-validation
+          name: blender-validation-${{ matrix.blender }}
           retention-days: 14
           path: |
             artifacts/
