@@ -9,9 +9,9 @@ except ModuleNotFoundError:  # Allows pure-Python unit tests outside Blender.
 
 
 if bpy is not None:
-    from . import operators, properties, ui
+    from . import operators, properties, ui, desk
 
-    _MODULES = (properties, operators, ui)
+    _MODULES = (properties, operators, ui, desk)
 else:
     _MODULES = ()
 

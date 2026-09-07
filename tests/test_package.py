@@ -9,7 +9,7 @@ from surface_layer_studio.constants import ADDON_ID, ADDON_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "surface_layer_studio"
-PACKAGE = ROOT / "dist" / "surface_layer_studio-1.0.0.zip"
+PACKAGE = ROOT / "dist" / ("surface_layer_studio-" + ".".join(map(str, ADDON_VERSION)) + ".zip")
 
 
 class ExtensionPackageTests(unittest.TestCase):

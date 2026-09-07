@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import bpy
+import numpy as np
 
 from .core import safe_filename
 
@@ -13,6 +14,12 @@ def set_color_space(image: bpy.types.Image | None, *, is_data: bool) -> None:
     if image is None:
         return
     desired = "Non-Color" if is_data else "sRGB"
+    if image.colorspace_settings.name == desired:
+        return  # Reassigning even the same color space can discard unsaved pixels.
+    pixels = None
+    if image.is_dirty and image.source != "TILED" and len(image.pixels):
+        pixels = np.empty(len(image.pixels), dtype=np.float32)
+        image.pixels.foreach_get(pixels)
     try:
         image.colorspace_settings.name = desired
     except TypeError:
@@ -22,6 +29,9 @@ def set_color_space(image: bpy.types.Image | None, *, is_data: bool) -> None:
             image.colorspace_settings.is_data = is_data
         except AttributeError:
             pass
+    if pixels is not None and len(image.pixels) == len(pixels):
+        image.pixels.foreach_set(pixels)
+        image.update()
 
 
 def mask_fill_value(fill: str | float) -> float:
@@ -90,7 +100,17 @@ def duplicate_mask(
     *,
     pack: bool,
 ) -> bpy.types.Image:
-    image = source.copy()
+    if source.source == "TILED":
+        raise RuntimeError("UDIM mask duplication is not available")
+    width, height = map(int, source.size)
+    if width < 1 or height < 1:
+        raise RuntimeError("Source mask has no pixel storage")
+    pixels = np.empty(width * height * 4, dtype=np.float32)
+    source.pixels.foreach_get(pixels)
+    image = bpy.data.images.new(source.name + " copy", width, height, alpha=True,
+                                float_buffer=source.is_float, is_data=True)
+    image.pixels.foreach_set(pixels)
+    image.update()
     short_id = layer_id.replace("-", "")[:8]
     image.name = f"SLS_{safe_filename(material.name)}_{safe_filename(layer_name)}_{short_id}_Mask"
     image["sls_mask"] = True

@@ -92,13 +92,15 @@ def apply_brush_settings(context, *, quiet: bool = False) -> bpy.types.Brush | N
             except (AttributeError, TypeError):
                 if not quiet:
                     raise
-    if hasattr(brush, "curve_preset"):
+    falloff_name = "curve_distance_falloff_preset" if hasattr(brush, "curve_distance_falloff_preset") else "curve_preset"
+    if hasattr(brush, falloff_name):
         try:
-            brush.curve_preset = settings.brush_falloff
+            setattr(brush, falloff_name, settings.brush_falloff)
         except (AttributeError, TypeError):
             pass
-    if hasattr(brush, "image_tool"):
-        brush.image_tool = "SOFTEN" if settings.brush_mode == "SOFTEN" else "DRAW"
+    tool_name = "image_brush_type" if hasattr(brush, "image_brush_type") else "image_tool"
+    if hasattr(brush, tool_name):
+        setattr(brush, tool_name, "SOFTEN" if settings.brush_mode == "SOFTEN" else "DRAW")
     if hasattr(brush, "blend"):
         brush.blend = "MIX"
     if hasattr(brush, "stroke_method"):

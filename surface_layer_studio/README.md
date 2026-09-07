@@ -1,9 +1,9 @@
-# Surface Layer Studio 1.0.0
+# Surface Layer Studio 1.1.0
 
-Blender 4.5 LTS extension for ordered PBR texture layers with paintable grayscale UV masks.
+Blender-native Shipwreck Texture Desk: 48 procedural material presets, eight layer recipes, a two-pane editing workspace, live weathering, copy-on-edit image tools, and Cycles PBR/ORM baking.
 
-After installation, select a mesh and open **3D Viewport > Sidebar (`N`) > Surface Layers**. Choose **Create Layer Stack** or **Build Ship Interior Starter**, audit/unwrap UVs, select a layer, and use **Start Mask Painting**. White Reveal paint adds the layer; black Hide paint removes it; Stroke Opacity controls gradual buildup.
+After installation, select a mesh, press N in the 3D Viewport, open Shipwreck Desk and choose Open Shipwreck Desk. The original Surface Layers panel and PBR/UV/mask tools remain available.
 
-The extension supports Base Color, Roughness, Metallic, Normal, Height, AO, and Emission maps, automatic PBR-set import, selected-face material assignment, paint guards, mask export/packing, channel previews, and graph repair.
+Regular 0–1 UVs are required for painted masks and export. These are procedural starting materials, not scans or cloud-AI outputs. The image lab is limited to 16 megapixels; start at 1K/2K. Save a copy before upgrading, pack source images, and save your blend before closing.
 
-Version 1.0 creates regular 0–1 UV masks. Layer count has no software cap, but shader and texture cost grows with every visible layer.
+Source, full guide, verification scripts and limitations: https://github.com/CurioCrafter/TextureLayering

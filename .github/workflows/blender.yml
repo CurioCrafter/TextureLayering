@@ -1,0 +1,79 @@
+name: Blender integration
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  blender:
+    strategy:
+      fail-fast: false
+      matrix:
+        blender: ['4.5.11', '5.2.1']
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official Blender with checksum verification
+        shell: bash
+        env:
+          VERSION: ${{ matrix.blender }}
+        run: |
+          set -euo pipefail
+          SERIES=${VERSION%.*}
+          URL=https://download.blender.org/release/Blender${SERIES}
+          curl --fail --location --retry 3 -o /tmp/blender.tar.xz "$URL/blender-$VERSION-linux-x64.tar.xz"
+          curl --fail --location --retry 3 -o /tmp/blender.sha256 "$URL/blender-$VERSION.sha256"
+          EXPECTED=$(grep "blender-$VERSION-linux-x64.tar.xz" /tmp/blender.sha256 | cut -d ' ' -f1)
+          test -n "$EXPECTED"
+          echo "$EXPECTED  /tmp/blender.tar.xz" | sha256sum --check -
+          tar -xf /tmp/blender.tar.xz -C /tmp
+          echo "/tmp/blender-$VERSION-linux-x64" >> "$GITHUB_PATH"
+      - name: Build and validate extension
+        run: |
+          python scripts/build_extension.py
+          blender --command extension validate surface_layer_studio
+      - name: Original source regression
+        run: |
+          mkdir -p artifacts
+          blender --background --factory-startup --threads 2 --python-exit-code 1 --python tests/blender_smoke.py -- --source-root "$PWD" --artifact "$PWD/artifacts/original-smoke.blend"
+          blender --background --factory-startup --threads 2 --python-exit-code 1 --python tests/blender_ui_smoke.py -- --source-root "$PWD"
+          blender --background --factory-startup --threads 2 --python-exit-code 1 --python tests/blender_import_smoke.py -- --source-root "$PWD" --fixture-dir "$PWD/artifacts/import-fixtures"
+          blender --background "$PWD/artifacts/original-smoke.blend" --threads 2 --python-exit-code 1 --python tests/blender_reopen_smoke.py -- --source-root "$PWD"
+      - name: Texture desk and actual PBR bake regression
+        run: blender --background --factory-startup --threads 2 --python-exit-code 1 --python tests/blender_desk_smoke.py -- --source-root "$PWD" --output "$PWD/artifacts"
+      - name: Install and test the packaged extension in fresh processes
+        env:
+          BLENDER_USER_RESOURCES: ${{ runner.temp }}/sls-profile
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/sls-profile/config
+          BLENDER_USER_SCRIPTS: ${{ runner.temp }}/sls-profile/scripts
+          BLENDER_USER_DATAFILES: ${{ runner.temp }}/sls-profile/datafiles
+          BLENDER_USER_EXTENSIONS: ${{ runner.temp }}/sls-profile/extensions
+        run: |
+          mkdir -p "$BLENDER_USER_CONFIG" "$BLENDER_USER_SCRIPTS" "$BLENDER_USER_DATAFILES" "$BLENDER_USER_EXTENSIONS"
+          blender --background --factory-startup --threads 2 --python-exit-code 1 --python tests/blender_install_extension.py -- --zip "$PWD/dist/surface_layer_studio-1.1.0.zip"
+          blender --background --threads 2 --python-exit-code 1 --python tests/blender_installed_smoke.py
+      - name: Native-window workspace check (4.5 OpenGL)
+        if: matrix.blender == '4.5.11'
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          OMP_NUM_THREADS: '2'
+          SLS_CAPTURE_PYTHON: /usr/bin/python3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb openbox python3-pil
+          xvfb-run -a -s '-screen 0 1920x1080x24' bash -c 'openbox >/tmp/openbox.log 2>&1 & timeout 120 blender --factory-startup --threads 2 --window-geometry 0 0 1920 1080 --python-exit-code 1 --python tests/blender_desk_gui.py -- --source-root "$PWD" --output "$PWD/artifacts/gui"'
+          test -f artifacts/gui/gui-report.txt
+          test ! -f artifacts/gui/gui-failure.txt
+          grep -q PASS artifacts/gui/gui-report.txt
+      - name: Retain test evidence and installable extension
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-validation-${{ matrix.blender }}
+          retention-days: 14
+          path: |
+            artifacts/
+            dist/surface_layer_studio-1.1.0.zip
