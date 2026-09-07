@@ -1,7 +1,7 @@
 """Constants kept separate to make UI and shader behavior easy to audit."""
 
 ADDON_ID = "surface_layer_studio"
-ADDON_VERSION = (1, 0, 0)
+ADDON_VERSION = (1, 1, 0)
 MANAGED_TAG = "sls_managed"
 NODE_PREFIX = "SLS_"
 MASK_NODE_SUFFIX = "_MASK"

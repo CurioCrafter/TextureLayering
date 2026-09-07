@@ -20,8 +20,7 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall -q surface_layer_studio tests
       - name: Build extension
-        run: |
-          if test -f scripts/build_extension.py; then python scripts/build_extension.py; fi
+        run: python scripts/build_extension.py
       - name: Run pure Python regression tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Archive source for reproducibility

@@ -34,3 +34,10 @@ installed_nodes = importlib.import_module(f"{module_id}.nodes")
 healthy, message = installed_nodes.graph_health(material)
 assert healthy, message
 print(f"SLS_INSTALLED_SMOKE_PASS path={module_path} layers={len(material.sls.layers)}")
+
+assert hasattr(bpy.types.Scene, "sls_desk")
+assert "FINISHED" in bpy.ops.sls.desk_preset(preset_id="hull_oxide")
+assert material.sls.layers[0].desk.preset_id == "hull_oxide"
+assert "FINISHED" in bpy.ops.sls.desk_generate()
+assert "FINISHED" in bpy.ops.sls.desk_edit(operation="INVERT")
+print("SLS_INSTALLED_DESK_PASS")

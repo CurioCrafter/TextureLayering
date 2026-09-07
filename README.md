@@ -1,69 +1,67 @@
-# Surface Layer Studio
+# Surface Layer Studio 1.1 — Shipwreck Texture Desk
 
-Surface Layer Studio is a Blender 4.5 LTS extension for building and painting ordered PBR material layers directly on UV-mapped meshes. It was designed around detailed ship interiors: painted steel, exposed edges, rust, oil, damp staining, markings, and emissive control panels can each live on an independent grayscale mask.
+A Blender-native layered material and image-editing workspace for **Shipwreck Discovery**: corroded hulls, flooded machinery, algae-covered shelving, worn casino interiors, markings, and underwater props.
 
-White mask paint reveals a layer, black hides it, gray creates partial transitions. Brush opacity controls each stroke; layer opacity controls the finished layer. The stack remains editable and the generated shader can be repaired from metadata at any time.
+This update extends the original Surface Layer Studio rather than replacing its materials or paint system. It adds a dedicated two-pane workspace, a searchable material shelf, live procedural weathering, copy-on-edit image tools, and actual Cycles texture baking. The extension runs locally, with no API key, cloud service, downloaded material pack, or generative-AI dependency.
 
-## Included features
+## What is new
 
-- Dynamic top-to-bottom layer list with no hard-coded layer count.
-- Independent UV paint mask per layer.
-- Native Blender Texture Paint brushes with Reveal, Hide, Soften, radius, stroke opacity, pressure, falloff, spacing, and airbrush controls.
-- Base Color, Roughness, Metallic, Normal, Height/Bump, Ambient Occlusion, and Emission channels.
-- Normal, Multiply, Overlay, Soft Light, Screen, Add, Darken, and Lighten color blends.
-- OpenGL and DirectX normal-map handling.
-- Per-layer tint, channel strength, UV map, offset, scale, and rotation.
-- Solo, visibility, lock, duplicate, reorder, mask inversion, fill, resize, preview, and repair operations.
-- PBR-set auto-import from common filename suffixes such as `BaseColor`, `Roughness`, `Metallic`, `NormalDX`, `Height`, `AO`, and `Emissive`.
-- Assign the complete stack to selected faces and optionally guard paint strokes to selected faces.
-- UV audit for missing/zero-area/out-of-tile/exact-overlap cases plus explicit Smart UV Project.
-- A practical seven-layer **Ship Interior Starter**.
-- Independent single-user copies of shared materials and all masks.
-- Embedded generated masks, packing for external mask/source images, and PNG mask export.
-- Channel previews for mask, base color, roughness, metallic, normal, height, and emission.
+| Area | Implemented in 1.1 |
+| --- | --- |
+| Workspace | Separate **Shipwreck Desk** with a 3D material view and native Image Editor; independent Library / Layers / Paint / Lab / Export tabs in the two sidebars. The source workspace layout is preserved. |
+| Preset shelf | **48 editable presets**, six categories, procedural thumbnail guides, search, favorites, and paged browsing. |
+| Complete recipes | **Eight** append-only layer recipes: wreck hull, engine room, submerged casino, slot-machine casing, galley shelving, dive signage, timber deck, and pipework. |
+| Live weathering | Noise, streaks, cells, cracks, stripes, and tiles; object/world/UV coordinates, seed, coverage, transition, scale, axis stretch, color variation, roughness variation, and bump relief. |
+| Placement | Upward/downward-facing accumulation and an adjustable world-Z waterline band, multiplied by the painted UV mask. |
+| Image lab | **12** copy-on-edit operations: invert, levels/gamma, blur, grow, shrink, edge, normalize, flip X/Y, half-tile offset, grayscale, and threshold. One previous image per layer can be restored or used for A/B comparison. |
+| Mask and normal tools | Seeded 2D paint-mask generation; height/mask-to-normal conversion with OpenGL/DirectX control; eight native mask-brush setting presets. |
+| Projection | UV or object-box projection for color/scalar source textures. Tangent normal maps and painted masks remain UV-based. |
+| Export | Real flattened BaseColor, Roughness, Metallic, Height, Emission, optional Normal/AO, plus packed **ORM** and a JSON manifest. Unique output folders; source objects and texture paths are retained. |
 
-## Install in Blender 4.5.11
+The existing ordered PBR stack, blend modes, import-by-filename, mask painting, selected-face assignment, UV audit, channel previews, material isolation, packing, and graph repair remain available in **Surface Layers**.
 
-Download the tested [Surface Layer Studio 1.0.0 extension ZIP](dist/surface_layer_studio-1.0.0.zip), then:
+## Install
 
-1. Open **Edit > Preferences > Get Extensions**.
-2. Open the dropdown in the upper-right and choose **Install from Disk**.
-3. Select `dist/surface_layer_studio-1.0.0.zip`.
-4. Enable **Surface Layer Studio** if Blender does not enable it automatically.
-5. In a 3D Viewport, press `N` and open the **Surface Layers** tab.
+Use the supplied `surface_layer_studio-1.1.0.zip`, or obtain it from the **Blender integration** workflow's `blender-validation-<version>` artifact. Extract the workflow artifact first; install the inner extension ZIP, not the artifact wrapper. Workflow artifacts expire according to their retention setting.
 
-The release zip is an official Blender Extension archive. Its `blender_manifest.toml` requires Blender 4.5.0 or newer and declares file access because PBR images can be loaded and masks can be exported.
+To build the same extension from this branch, run `python scripts/build_extension.py` with Python 3.11 or newer. This creates `dist/surface_layer_studio-1.1.0.zip`. The older committed `dist/surface_layer_studio-1.0.0.zip` is a historical release, not this upgrade.
 
-## First ship-interior workflow
+In Blender, save your work, then use **Edit → Preferences → Get Extensions → menu → Install from Disk** and select the **1.1.0** extension ZIP. When upgrading, disable the earlier copy and restart Blender before enabling the new one. Do not enable both a legacy add-on copy and the extension copy simultaneously.
 
-1. Select the interior mesh. To limit the whole material to certain panels, enter Edit Mode and select those faces first.
-2. Open **Surface Layers** and choose **Build Ship Interior Starter**. Existing materials are copied by default; selected Edit Mode faces receive a separate material slot.
-3. Open **Surface Scope & UV**. Run **Audit UVs**. If the mesh is not unwrapped, use **Smart UV Project** deliberately or open Blender's UV Editing workspace and unwrap it yourself.
-4. Select a layer. Use **Import PBR Set** or assign individual channel images in **Layer Textures & PBR**.
-5. New overlay masks start black. Open **Paint Layer Mask**, choose **Reveal**, set **Stroke Opacity**, then click **Start Mask Painting**. Paint in either the 3D Viewport or Image Editor.
-6. Use **Hide** to remove coverage, **Soften** for transitions, and **Selected Faces** to prevent new strokes spilling onto unselected faces.
-7. Use **Layer Opacity** for the final contribution. This is intentionally separate from Stroke Opacity.
-8. Use **Files, Preview & Stack > Protect Painted Work**. Generated masks are already embedded in the `.blend`; external masks can be packed, and all masks can be exported as PNG files.
+Select a mesh, press **N** in the 3D Viewport, open **Shipwreck Desk**, and click **Open Shipwreck Desk**. Alternatively, the same button appears in the original **Surface Layers** panel. If the new sidebars select a different tab, click **Shipwreck Desk** once. Drag a sidebar's left border to widen it when working with large UI scaling.
 
-## Three different kinds of scope
+## First useful workflow
 
-- **Material assignment** decides which mesh faces use the entire stack.
-- **Layer mask** decides where one layer appears on those faces.
-- **Selected-face paint guard** only prevents new strokes outside selected faces; it does not erase existing pixels.
+1. Save a copy of your `.blend`. Select a UV-mapped mesh or unwrap it deliberately; the extension does not silently re-unwrap your asset.
+2. In **Library**, set the mask size to 1K or 2K and append **Galley metal shelving** or **Wreck hull**. Recipes append layers; they do not clear the current stack. To limit a material to selected faces, create/assign the stack in Edit Mode first.
+3. In **Layers**, select rust, algae, or sediment. Adjust coverage and scale, use upward-facing placement for deposited silt, and reduce procedural relief on distant props.
+4. In **Paint**, choose a mask brush and **Start mask painting in 3D**. Hide removes local coverage; Reveal restores the procedural layer. Use the right-hand Image Editor for direct image painting and the **Lab** for copy-on-edit cleanup.
+5. Finish painting, set channel preview to **Composite**, audit the UVs, and use **Export**. Import the resulting PNGs into your game engine using the manifest's channel and color-space conventions.
 
-Keeping these separate avoids a common Blender failure mode where a user expects a layer mask to change material slots, or expects face selection to rewrite old paint.
+For the full workflow and the distinction between a procedural mask and a painted image, read [Shipwreck Desk guide](docs/SHIPWRECK_DESK.md). The [original layer guide](docs/USER_GUIDE.md) covers material assignment, PBR filename detection, paint guards, and shader restoration.
 
-## Important limitations
+## Safety and limitations
 
-- Version 1.0 creates regular 0–1 UV masks. Source textures may be tiled images, but the add-on does not yet create or fill UDIM paint masks.
-- Mirrored or overlapping UVs share pixels. A stroke can therefore appear on every face using the same UV area; the UV audit reports exact overlaps but cannot prove every geometric overlap.
-- “Unlimited layers” means the collection has no software cap. Every visible layer adds shader nodes, texture sampling, compilation time, and image memory. The verified 20-layer test rebuilt in about 1.2 seconds on this machine, but production performance depends on hardware, texture resolution, and channel count.
-- A byte RGBA mask is roughly 16 MB at 2K and 64 MB at 4K before mipmaps/driver overhead. Use 4K only on hero surfaces; split a ship interior into sensible material regions.
-- Surface Layer Studio preserves an existing shader link and works on a material copy by default. It cannot translate an arbitrary custom shader into editable PBR channels, so the layered result starts from the material's basic color/roughness/metallic values. **Disable and Restore Material** reconnects the preserved shader.
-- Flattened PBR baking, curvature generators, triplanar layers, decals, groups, and UDIM-mask authoring are not part of this release. They were excluded rather than shipped as fragile placeholders.
+These presets are original procedural **starting materials**, not scanned surfaces, trained AI outputs, or physically simulated corrosion. Import real PBR textures for additional realism. Swatches are 2D guides, not baked previews of the selected object. Barnacle relief does not create silhouette geometry; stencil paint does not generate lettering; glass frosting is an opaque deposit, not a transmission shader.
 
-See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for channel naming, troubleshooting, and a detailed ship workflow.
+Regular 0–1 UVs are required for paint masks and export. UDIM authoring, layer groups, PSD round-tripping, mesh-aware curvature generators, arbitrary decal projection, and generative fill are not implemented. This is a specialized workflow upgrade, not a claim of feature parity or overall superiority to Ucupaint or Substance Painter.
+
+The image lab is limited to 16 megapixels and bake resolution to 4K. Several full-resolution working buffers may be allocated: start at 1K/2K, especially on large interiors. The layer collection has no hard-coded count limit, but shader compilation, texture memory, and GPU cost increase with every visible layer. First-time material compilation can be slow. Baking uses Cycles CPU and is synchronous; entire-ship performance has not been benchmarked.
+
+The lab preserves the source of its last edit, not an unlimited image history. Native Blender painting still edits the active image directly. Layer locks guard extension image-edit operations, not every possible edit through Blender's other tools. Pack external source images and save the `.blend` before closing.
 
 ## Verification
 
-The repository contains pure-Python tests and Blender 4.5.11 source, save/reopen, extension validation, package inspection, and installed-copy smoke scripts. Run `scripts/verify.ps1` after changing the add-on.
+The implementation has been exercised in **Blender 4.5.11 LTS and 5.2.1 LTS on Linux**. Validation includes 26 pure-Python tests; 799 assertions per version in the new Blender integration script; original source/UI/import/save-reopen regressions; extension manifest validation; and real installation followed by a fresh-process test of the installed copy. The integration script performs an actual small eight-map bake and checks pixels, source preservation, and failure cleanup.
+
+Native-window tests cover the workspace and panels with OpenGL software rendering. They do not establish Vulkan compatibility or production performance on your GPU. Windows/macOS installers and full ship-scale assets were not exercised in this environment. See [validation details](docs/VALIDATION.md) and the per-commit GitHub Actions results.
+
+```sh
+python scripts/build_extension.py
+python -m pip install 'numpy>=1.26,<3'
+python -m unittest discover -s tests -p 'test_*.py' -v
+blender --background --factory-startup --threads 2 --python-exit-code 1 \
+  --python tests/blender_desk_smoke.py -- --source-root . --output artifacts
+```
+
+The workflows rebuild the distributable from source and test both Blender versions. No Ucupaint source code or third-party texture pack is bundled. License: MIT.

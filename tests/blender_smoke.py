@@ -35,7 +35,7 @@ from surface_layer_studio.constants import MANAGED_TAG  # noqa: E402
 
 
 addon.register()
-require(bpy.app.version_string.startswith("4.5.11"), f"wrong Blender: {bpy.app.version_string}")
+require(bpy.app.version >= (4, 5, 0), f"wrong Blender: {bpy.app.version_string}")
 
 # UI icons fail at draw time, so validate every literal against Blender's RNA enum.
 ui_source = (root / "surface_layer_studio" / "ui.py").read_text(encoding="utf-8")
@@ -145,9 +145,9 @@ require(max(brush.color) < 0.01, "hide brush is not black")
 require("FINISHED" in bpy.ops.sls.set_brush_mode(mode="REVEAL"), "reveal brush failed")
 require(min(brush.color) > 0.99, "reveal brush is not white")
 require("FINISHED" in bpy.ops.sls.select_soften_tool(), "soften brush failed")
-require(brush.image_tool == "SOFTEN", "soften did not select Blender's native image mode")
+require(getattr(brush, "image_brush_type", getattr(brush, "image_tool", None)) == "SOFTEN", "soften did not select Blender's native image mode")
 bpy.context.scene.sls_tools.brush_strength = 0.21
-require(brush.image_tool == "SOFTEN", "changing opacity silently reverted Soften to Draw")
+require(getattr(brush, "image_brush_type", getattr(brush, "image_tool", None)) == "SOFTEN", "changing opacity silently reverted Soften to Draw")
 require("FINISHED" in bpy.ops.sls.set_brush_mode(mode="REVEAL"), "return to reveal failed")
 require("FINISHED" in bpy.ops.sls.finish_paint(), "finish paint failed")
 require(obj.mode == "OBJECT", "finish paint did not restore Object mode")

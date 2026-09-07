@@ -4,7 +4,7 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Blender = Join-Path $Root ".tools\blender-4.5.11-windows-x64\blender.exe"
 $Source = Join-Path $Root "surface_layer_studio"
 $Dist = Join-Path $Root "dist"
-$Package = Join-Path $Dist "surface_layer_studio-1.0.0.zip"
+$Package = Join-Path $Dist "surface_layer_studio-1.1.0.zip"
 $Artifacts = Join-Path $Root "artifacts"
 $Profile = Join-Path $Root ".tmp-profile-4.5.11"
 $BlendArtifact = Join-Path $Artifacts "sls-smoke.blend"
@@ -72,7 +72,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "extension build failed" }
     & $Blender --factory-startup --command extension validate $Package
     if ($LASTEXITCODE -ne 0) { throw "built extension validation failed" }
-    python -m unittest discover -s tests -p "test_package.py" -v
+    python -m unittest discover -s tests -p "test_*.py" -v
     if ($LASTEXITCODE -ne 0) { throw "package inspection failed" }
 
     Invoke-BlenderMarker -Marker "SLS_SMOKE_PASS" -Arguments @(
@@ -94,6 +94,11 @@ try {
         "--background", "--factory-startup", $BlendArtifact, "--python-exit-code", "1",
         "--python", (Join-Path $Root "tests\blender_reopen_smoke.py"), "--",
         "--source-root", $Root
+    )
+    Invoke-BlenderMarker -Marker "SLS_DESK_SMOKE_PASS" -Arguments @(
+        "--background", "--factory-startup", "--python-exit-code", "1",
+        "--python", (Join-Path $Root "tests\blender_desk_smoke.py"), "--",
+        "--source-root", $Root, "--output", $Artifacts
     )
     Invoke-BlenderMarker -Marker "SLS_INSTALL_PASS" -Arguments @(
         "--background", "--factory-startup", "--python-exit-code", "1",

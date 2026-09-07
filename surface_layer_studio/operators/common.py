@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from uuid import uuid4
+from time import monotonic
 
 import bpy
 
@@ -62,7 +63,7 @@ def add_layer(
 
 
 def copy_layer_properties(source, target) -> None:
-    excluded = {"rna_type", "uuid", "mask_image", "pinned_base"}
+    excluded = {"rna_type", "uuid", "mask_image", "pinned_base", "desk"}
     for prop in source.bl_rna.properties:
         name = prop.identifier
         if name in excluded or prop.is_readonly:
@@ -72,6 +73,13 @@ def copy_layer_properties(source, target) -> None:
             setattr(target, name, value[:]) if getattr(prop, "is_array", False) else setattr(target, name, value)
         except (AttributeError, TypeError, ValueError):
             continue
+
+    if hasattr(source, "desk") and hasattr(target, "desk"):
+        for prop in source.desk.bl_rna.properties:
+            if prop.identifier in {"rna_type", "previous_image", "previous_slot", "previous_normal_format"} or prop.is_readonly:
+                continue
+            value = getattr(source.desk, prop.identifier)
+            setattr(target.desk, prop.identifier, value[:] if getattr(prop, "is_array", False) else value)
 
 
 def material_slot_index(obj: bpy.types.Object, material: bpy.types.Material) -> int | None:
@@ -99,3 +107,24 @@ def require_active_layer(context):
     if material is None or layer is None:
         return None, None
     return material, layer
+
+
+_USER_CACHE = {}
+
+
+def shared_material_objects(material):
+    """Count objects, not orphan mesh datablocks; briefly cache for heavy scenes."""
+    if material is None:
+        return 0
+    if material.users <= 1:
+        return material.users
+    key = material.as_pointer()
+    now = monotonic()
+    previous = _USER_CACHE.get(key)
+    if previous and now - previous[0] < .5:
+        return previous[1]
+    count = sum(any(slot.material == material for slot in obj.material_slots) for obj in bpy.data.objects)
+    if len(_USER_CACHE) > 256:
+        _USER_CACHE.clear()
+    _USER_CACHE[key] = (now, count)
+    return count

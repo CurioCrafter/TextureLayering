@@ -9,6 +9,7 @@ from . import nodes
 from .images import estimated_memory_mb
 from .properties import active_layer
 from .uv import active_uv_name
+from .operators.common import shared_material_objects
 
 
 def _active_mesh(context):
@@ -32,6 +33,7 @@ def _draw_setup(layout, context) -> None:
     if obj is None:
         box.label(text="Select a mesh object to begin", icon="MESH_DATA")
         return
+    box.operator("sls.desk_workspace", icon="WINDOW")
     box.label(text="Build a paintable PBR layer stack", icon="MATERIAL")
     box.label(text="Existing materials are copied by default.")
     if obj.mode == "EDIT":
@@ -86,6 +88,7 @@ class SLS_PT_layers(Panel):
             _draw_setup(layout, context)
             return
 
+        layout.operator("sls.desk_workspace", icon="WINDOW")
         settings = material.sls
         header = layout.row(align=True)
         header.label(text=material.name, icon="MATERIAL")
@@ -103,10 +106,11 @@ class SLS_PT_layers(Panel):
             warning.label(text=message, icon="ERROR")
             warning.operator("sls.repair_stack", icon="FILE_REFRESH")
 
-        if material.users > 1:
+        object_users = shared_material_objects(material)
+        if object_users > 1:
             shared = layout.box()
             shared.alert = True
-            shared.label(text=f"Shared material ({material.users} users)", icon="LINKED")
+            shared.label(text=f"Shared material ({object_users} objects)", icon="LINKED")
             shared.label(text="Painting may affect another object.")
             shared.operator("sls.make_single_user", icon="DUPLICATE")
 

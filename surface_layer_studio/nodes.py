@@ -8,6 +8,7 @@ import bpy
 
 from .constants import MANAGED_TAG, MASK_NODE_SUFFIX, NODE_PREFIX
 from .properties import active_layer
+from . import desk_shader
 
 
 _PENDING: set[bpy.types.Material] = set()
@@ -67,6 +68,9 @@ def _texture_node(tree, name: str, label: str, image, vector, x: float, y: float
     node.image = image
     node.interpolation = "Linear"
     node.extension = "REPEAT"
+    if vector is not None and vector.node.get("sls_box_projection"):
+        node.projection = "BOX"
+        node.projection_blend = 0.2
     if vector is not None:
         tree.links.new(vector, node.inputs["Vector"])
     return node
@@ -176,6 +180,15 @@ def _mapped_vector(tree, layer, prefix: str, frame, x: float, y: float):
     mapping.inputs["Scale"].default_value[0] = layer.mapping_scale[0]
     mapping.inputs["Scale"].default_value[1] = layer.mapping_scale[1]
     tree.links.new(uv.outputs["UV"], mapping.inputs["Vector"])
+    if hasattr(layer, "desk") and layer.desk.source_projection == "BOX":
+        coordinates = _new_node(tree, "ShaderNodeTexCoord", f"{prefix}_BoxCoords", "Object box", x, y - 250, frame)
+        box = _new_node(tree, "ShaderNodeMapping", f"{prefix}_BoxMapping", "Box transform", x + 180, y - 250, frame)
+        box["sls_box_projection"] = True
+        box.inputs["Location"].default_value = (*layer.mapping_offset, 0.0)
+        box.inputs["Scale"].default_value = (*layer.mapping_scale, layer.mapping_scale[0])
+        box.inputs["Rotation"].default_value[2] = layer.mapping_rotation
+        tree.links.new(coordinates.outputs["Object"], box.inputs["Vector"])
+        return uv.outputs["UV"], box.outputs["Vector"]
     return uv.outputs["UV"], mapping.outputs["Vector"]
 
 
@@ -205,6 +218,7 @@ def _layer_nodes(tree, layer, index: int, current: dict[str, object], composite:
     raw_mask = mask_node.outputs["Color"] if layer.mask_image else _value(
         tree, f"{prefix}_NoMask", 1.0, -430, 580, frame
     )
+    raw_mask = desk_shader.mask(tree, layer, prefix, frame, raw_mask)
     if layer.invert_mask:
         invert = _math(tree, "SUBTRACT", f"{prefix}_InvertMask", -200, 580, frame)
         invert.inputs[0].default_value = 1.0
@@ -270,14 +284,16 @@ def _layer_nodes(tree, layer, index: int, current: dict[str, object], composite:
         tree.links.new(metal_tex.outputs["Color"], metal_mul.inputs[0])
         metallic = metal_mul.outputs[0]
 
+    layer_color, roughness, generated_height = desk_shader.surface(tree, layer, prefix, frame, layer_color, roughness)
+
     normal_color = None
     if layer.normal_image:
-        normal_tex = _texture_node(tree, f"{prefix}_Normal", "Normal", layer.normal_image, source_vector, -430, -300, frame)
+        normal_tex = _texture_node(tree, f"{prefix}_Normal", "Normal", layer.normal_image, tree.nodes[f"{prefix}_Mapping"].outputs["Vector"], -430, -300, frame)
         normal_color = normal_tex.outputs["Color"]
         if layer.normal_format == "DIRECTX":
             normal_color = _directx_to_opengl(tree, normal_color, prefix, -190, -300, frame)
 
-    height = None
+    height = generated_height
     if layer.height_image:
         height_tex = _texture_node(tree, f"{prefix}_Height", "Height", layer.height_image, source_vector, -430, -470, frame)
         height = height_tex.outputs["Color"]
@@ -392,6 +408,15 @@ def rebuild_material(material: bpy.types.Material) -> bool:
             raw_masks[layer.uuid] = _layer_nodes(
                 tree, layer, len(settings.layers) - reverse_index - 1, current, layer.uuid in effective_ids
             )
+
+        # Explicit unlit channel sockets for safe, temporary export materials.
+        for channel in ("color", "roughness", "metallic", "normal", "height", "emission"):
+            channel_node = _new_node(tree, "NodeReroute", f"SLS_Channel_{channel}", channel, 650, 600)
+            tree.links.new(current[channel], channel_node.inputs[0])
+        layer = active_layer(material)
+        if layer and layer.uuid in raw_masks:
+            channel_node = _new_node(tree, "NodeReroute", "SLS_Channel_mask", "Active mask", 650, 700)
+            tree.links.new(raw_masks[layer.uuid], channel_node.inputs[0])
 
         shader = _new_node(tree, "ShaderNodeBsdfPrincipled", "SLS_Principled", "Layered Surface", 900, 100)
         shader["sls_role"] = "principled"
