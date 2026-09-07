@@ -1,0 +1,40 @@
+name: Render Rake Horror Short
+on:
+  push:
+    branches: ['feat/rake-short-render']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and ffmpeg
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          VERSION=4.5.11; SERIES=4.5; URL=https://download.blender.org/release/Blender${SERIES}
+          curl --fail --location --retry 3 -o /tmp/blender.tar.xz "$URL/blender-$VERSION-linux-x64.tar.xz"
+          curl --fail --location --retry 3 -o /tmp/blender.sha256 "$URL/blender-$VERSION.sha256"
+          EXPECTED=$(grep "blender-$VERSION-linux-x64.tar.xz" /tmp/blender.sha256 | cut -d ' ' -f1)
+          echo "$EXPECTED  /tmp/blender.tar.xz" | sha256sum --check -
+          tar -xf /tmp/blender.tar.xz -C /tmp
+          echo "/tmp/blender-$VERSION-linux-x64" >> "$GITHUB_PATH"
+      - name: Build render, scene, sound and previews
+        env:
+          RAKE_OUT: ${{ github.workspace }}/rake_artifacts
+        run: |
+          mkdir -p rake_artifacts
+          blender --background --factory-startup --threads 4 --python-exit-code 1 --python scripts/rake_short.py
+          ffprobe -v error -show_entries format=duration -of default=nw=1 rake_artifacts/Rake_Dont_Answer_It_30s.mp4
+          test -s rake_artifacts/Rake_Dont_Answer_It.blend
+          test -s rake_artifacts/sound.wav
+      - name: Upload finished Rake short
+        uses: actions/upload-artifact@v4
+        with:
+          name: rake-dont-answer-it-finished
+          retention-days: 14
+          path: rake_artifacts/
