@@ -38,3 +38,4 @@ jobs:
           name: rake-dont-answer-it-finished
           retention-days: 14
           path: rake_artifacts/
+# fixed headless world initialization
