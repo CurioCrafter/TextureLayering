@@ -116,6 +116,15 @@ try:
     bpy.data.objects.remove(reference, do_unlink=True)
     rf.geometry.activate(low)
     check('audit_operator', 'FINISHED' in bpy.ops.rockforge.audit())
+    settings.preset = 'SANDSTONE'
+    settings.seed = 7
+    settings.density = 80
+    settings.quads = 1500
+    regression_low, regression_high = rf.pipeline.build(rf.configuration(settings))
+    regression = rf.geometry.mesh_audit(regression_low)
+    report['sandstone_7_regression'] = regression
+    check('sandstone_7_positive_winding', regression['signed_volume'] > 0 and rf.geometry.mesh_audit(regression_high)['signed_volume'] > 0)
+    check('sandstone_7_closed_quads', regression['structurally_valid'] and regression['components'] == 1 and regression['quads'] == regression['faces'])
     before_lows = len([obj for obj in bpy.data.objects if obj.get('rf_role') == 'LOW'])
     settings.batch_count = 2
     settings.density = 64
