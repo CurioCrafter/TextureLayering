@@ -1,0 +1,30 @@
+name: RockForge completed delivery cleanup
+on:
+  push:
+    branches: [rockforge-studio]
+    paths: ['.github/workflows/rockforge-delivery-cleanup.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  stop-redundant-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Confirm the published package and stop only the superseded preview run
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/rockforge-studio-v1.0.0" > /tmp/release.json
+          jq -e '.draft == false and ([.assets[] | select(.name == "RockForge-Studio-Complete.zip" and .state == "uploaded" and .size > 1000000)] | length == 1)' /tmp/release.json
+          RUN=34157908086
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN" > /tmp/run.json
+          jq -e '.head_branch == "rockforge-studio" and .path == ".github/workflows/rockforge-parallel.yml"' /tmp/run.json
+          STATUS=$(jq -r .status /tmp/run.json)
+          if [[ "$STATUS" != completed ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/cancel" || {
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN" --jq .status | grep -qx completed
+            }
+          fi
+          echo 'Verified release retained; redundant preview run stopped or already finished.'
