@@ -75,10 +75,13 @@ jobs:
           for NAME in Basalt Limestone Slate; do
             "$BLENDER45" --background "output/examples/$NAME/$NAME.blend" --threads 2 --python-exit-code 1 --python tests/produce.py -- reopen "$PWD/output/examples/$NAME" > "output/reopen-$NAME.log" 2>&1 || { cat "output/reopen-$NAME.log"; exit 1; }
           done
-      - name: Capture actual Blender window with RockForge panel
+      - name: Capture and verify the actual RockForge sidebar
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/rf-ui/config
         run: |
-          xvfb-run -a -s '-screen 0 1700x1100x24' bash -c 'openbox >/tmp/rockforge-openbox.log 2>&1 & timeout 180 "$BLENDER45" output/examples/Basalt/Basalt.blend --threads 2 --window-geometry 0 0 1700 1100 --python-exit-code 1 --python tests/produce.py -- ui "$PWD/output/images"' > output/ui.log 2>&1 || { cat output/ui.log; exit 1; }
-          python -c "import json; r=json.load(open('output/images/ui.json')); print(r); assert r['success']"
+          "$BLENDER45" --background --factory-startup --threads 1 --python-expr 'import bpy; bpy.context.preferences.view.show_splash=False; bpy.ops.wm.save_userpref()' > output/ui-preferences.log 2>&1
+          xvfb-run -a -s '-screen 0 1700x1100x24' bash -c 'openbox >/tmp/rockforge-openbox.log 2>&1 & timeout 180 "$BLENDER45" output/examples/Basalt/Basalt.blend --enable-event-simulate --threads 2 --window-geometry 0 0 1700 1100 --python-exit-code 1 --python tests/gui_capture.py -- "$PWD/output/images"' > output/ui.log 2>&1 || { cat output/ui.log; exit 1; }
+          python -c "import json; r=json.load(open('output/images/ui.json')); print(r); assert r['success'] and r['active_sidebar']=='RockForge'"
       - name: Verify release contents and ZIP integrity
         run: |
           python build.py --complete output
@@ -111,7 +114,7 @@ jobs:
 
           Six procedural geology presets; connected voxel-unioned formations; editable native QuadriFlow meshes; BaseColor, tangent Normal, Roughness and AO baking; game exports; batch variations; collision; non-destructive shape-only reference retopology.
 
-          Published after clean-profile tests in Blender 4.5.11 and 5.2.1, the 18-case preset regression, real bakes and GLB reimports, packed-scene reopen checks, and native-window capture. Actual measurements are in **Verification.json**. **SHA256SUMS.txt** verifies the downloads.
+          Published after clean-profile tests in Blender 4.5.11 and 5.2.1, the 18-case preset regression, real bakes and GLB reimports, packed-scene reopen checks, and native-window capture with the actual RockForge sidebar activated. Actual measurements are in **Verification.json**. **SHA256SUMS.txt** verifies the downloads.
 
           This is not a guarantee of perfect topology for every setting. Reference textures are not transferred. LOD shading and extreme parameter combinations still need visual review.
           EOF
