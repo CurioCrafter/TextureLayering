@@ -52,7 +52,12 @@ def emission_override(mat, socket):
 
 
 def bake(low, high, directory, resolution=2048, samples=24):
-    """Selected-to-active Cycles baking with render-state restoration."""
+    """Selected-to-active Cycles baking with render-state restoration.
+
+    A tight projection envelope avoids sampling the opposite wall of a narrow
+    geological joint. The validated quad cage has already been shrinkwrapped
+    to the high surface; a large generic cage offset is counterproductive.
+    """
     directory = Path(bpy.path.abspath(str(directory))).expanduser()
     directory.mkdir(parents=True, exist_ok=True)
     geo.activate(low)
@@ -92,8 +97,8 @@ def bake(low, high, directory, resolution=2048, samples=24):
         settings.use_clear = True
         settings.margin = max(8, resolution // 128)
         settings.use_cage = False
-        settings.cage_extrusion = extent * 0.035
-        settings.max_ray_distance = extent * 0.16
+        settings.cage_extrusion = extent * 0.007
+        settings.max_ray_distance = extent * 0.055
         high.hide_set(False)
         high.hide_render = False
         for kind, bake_type, initial in (
@@ -124,6 +129,8 @@ def bake(low, high, directory, resolution=2048, samples=24):
         low['rf_baked'] = True
         low['rf_texture_resolution'] = resolution
         low['rf_texture_files'] = json.dumps({key: image.filepath_raw for key, image in images.items()})
+        low['rf_bake_projection'] = json.dumps({'cage_extrusion': float(settings.cage_extrusion),
+            'max_ray_distance': float(settings.max_ray_distance), 'extent': float(extent)})
         return images
     except Exception:
         low.data.materials.clear()
