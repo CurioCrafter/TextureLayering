@@ -99,6 +99,18 @@ def mesh_audit(obj):
     return report
 
 
+def _orient_outward(obj):
+    """Consistent outward winding for the generator's closed surfaces."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    if bm.calc_volume(signed=True) < 0:
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+
 def _largest_component(obj):
     """Discard detached voxel debris; keep the connected formation, not a pile."""
     bm = bmesh.new()
@@ -231,6 +243,7 @@ def generate_high(cfg, name='RockForge', collection=None):
     activate(high)
     bpy.ops.object.voxel_remesh()
     _largest_component(high)
+    _orient_outward(high)
     sm = high.modifiers.new('Weathered joints', 'SMOOTH')
     sm.factor = .55
     sm.iterations = 2+round(cfg['erosion']*4)
@@ -261,9 +274,13 @@ def _retopologize_once(high, target_quads, seed=0, name='RockForge_LOW'):
     low = copy_object(high,name,high.users_collection[0])
     for mod in list(low.modifiers): low.modifiers.remove(mod)
     activate(low)
-    result = bpy.ops.object.quadriflow_remesh(use_mesh_symmetry=False,
-        use_preserve_sharp=False, use_preserve_boundary=False,
-        mode='FACES', target_faces=int(target_quads), seed=int(seed))
+    try:
+        result = bpy.ops.object.quadriflow_remesh(use_mesh_symmetry=False,
+            use_preserve_sharp=False, use_preserve_boundary=False,
+            mode='FACES', target_faces=int(target_quads), seed=int(seed))
+    except RuntimeError:
+        bpy.data.objects.remove(low, do_unlink=True)
+        raise
     if 'FINISHED' not in result:
         bpy.data.objects.remove(low,do_unlink=True)
         raise RuntimeError('QuadriFlow failed; the high-detail source has been retained.')
@@ -272,6 +289,7 @@ def _retopologize_once(high, target_quads, seed=0, name='RockForge_LOW'):
     shrink.wrap_method = 'NEAREST_SURFACEPOINT'
     shrink.wrap_mode = 'ON_SURFACE'
     apply(low,shrink)
+    _orient_outward(low)
     for p in low.data.polygons: p.use_smooth=True
     report = mesh_audit(low)
     if not report['structurally_valid'] or report['quads'] != report['faces']:
